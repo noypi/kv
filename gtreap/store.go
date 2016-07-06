@@ -42,6 +42,11 @@ func itemCompare(a, b interface{}) int {
 	return bytes.Compare(a.(*Item).k, b.(*Item).k)
 }
 
+func GetDefault() kv.KVStore {
+	store, _ := New(dummymergeop{}, nil)
+	return store
+}
+
 func New(mo kv.MergeOperator, config map[string]interface{}) (kv.KVStore, error) {
 	rv := Store{
 		t:  gtreap.NewTreap(itemCompare),
@@ -63,4 +68,18 @@ func (s *Store) Reader() (kv.KVReader, error) {
 
 func (s *Store) Writer() (kv.KVWriter, error) {
 	return &Writer{s: s}, nil
+}
+
+type dummymergeop struct{}
+
+func (this dummymergeop) FullMerge(key, existingValue []byte, operands [][]byte) ([]byte, bool) {
+	return []byte{}, true
+}
+
+func (this dummymergeop) PartialMerge(key, leftOperand, rightOperand []byte) ([]byte, bool) {
+	return []byte{}, true
+}
+
+func (this dummymergeop) Name() string {
+	return "dummy-mergeop"
 }
