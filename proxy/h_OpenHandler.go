@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (this *_server) OpenHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+func (this *Server) OpenHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 	var err error
 	defer func() {
 		if nil != err {

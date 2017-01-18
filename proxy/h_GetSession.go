@@ -8,13 +8,14 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (this _server) validatePassword(pass string) bool {
+func (this Server) validatePassword(pass string) bool {
 	h := sha256.New()
+	h.Write(this.passwordsalt)
 	h.Write([]byte(pass))
 	return this.passwordhash == fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func (this *_server) GetSessionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+func (this *Server) GetSessionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 	var err error
 	defer func() {
 		if nil != err {

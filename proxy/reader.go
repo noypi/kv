@@ -1,5 +1,9 @@
 package proxy
 
+type _reader struct {
+	store *_store
+}
+
 /*
 import (
 	"fmt"
