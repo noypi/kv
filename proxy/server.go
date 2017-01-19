@@ -2,18 +2,11 @@ package proxy
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/big"
-	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -183,54 +176,22 @@ func (this *Server) newRdr() (rdr kv.KVReader, id string, err error) {
 }
 
 func generateTempCert(org, hosts string, bits int) (keypath, certpath string) {
-	priv, err := rsa.GenerateKey(rand.Reader, bits)
-
-	tValidTo := time.Now().AddDate(1, 0, 0)
-	tValidFrom := time.Now().AddDate(-1, 0, 0)
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		log.Fatal("failed to generate serial number err=", err)
-	}
-	tmpl := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{org},
-		},
-		NotBefore:             tValidFrom,
-		NotAfter:              tValidTo,
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA: true,
-	}
-	for _, h := range strings.Split(hosts, ",") {
-		if ip := net.ParseIP(h); nil != ip {
-			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
-		} else {
-			tmpl.DNSNames = append(tmpl.DNSNames, h)
-		}
-	}
-
-	bb, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &priv.PublicKey, priv)
-	if nil != err {
-		log.Fatal("failed to create certificate err=", err)
-	}
-
 	certTmpF, err := ioutil.TempFile(".", "tmp-cert.pem")
 	if nil != err {
 		log.Fatal("failed to create temp cert file. err=", err)
 	}
 	defer certTmpF.Close()
-	pem.Encode(certTmpF, &pem.Block{Type: "CERTIFICATE", Bytes: bb})
 
 	keyTmpF, err := ioutil.TempFile(".", "tmp-key.pem")
 	if nil != err {
 		log.Fatal("failed to create temp key file. err=", err)
 	}
 	defer keyTmpF.Close()
-	pem.Encode(keyTmpF, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	bbKey, bbCert := GenerateCert(org, hosts, bits)
+
+	keyTmpF.Write(bbKey)
+	certTmpF.Write(bbCert)
 
 	return keyTmpF.Name(), certTmpF.Name()
 }
