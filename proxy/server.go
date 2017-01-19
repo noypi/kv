@@ -21,16 +21,18 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/noypi/kv"
 	"github.com/twinj/uuid"
+	"gopkg.in/tylerb/graceful.v1"
 )
 
 type Server struct {
 	passwordhash string
 	passwordsalt []byte
 	db           kv.KVStore
-	server       *http.Server
-	sessions     *sessions.CookieStore
-	iterators    map[string]kv.KVIterator
-	readers      map[string]kv.KVReader
+	gracesvr     *graceful.Server
+	//server       *http.Server
+	sessions  *sessions.CookieStore
+	iterators map[string]kv.KVIterator
+	readers   map[string]kv.KVReader
 
 	syncDb    sync.Mutex
 	syncIters sync.Mutex
@@ -69,16 +71,26 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 	http.Handle("/iter/valid", server.AddSession(server.IterValidHandler))
 	http.Handle("/iter/next", server.AddSession(server.IterNextHandler))
 
-	srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
+	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 	server.sessions = sessions.NewCookieStore(bbSecret)
 
 	keypath, certpath := generateTempCert("noypi", "localhost", 2048)
-	go log.Fatal(srv.ListenAndServeTLS(certpath, keypath))
+
+	server.gracesvr = &graceful.Server{
+		Timeout: 5 * time.Second,
+		Server: &http.Server{
+			Addr:    ":" + port,
+			Handler: context.ClearHandler(http.DefaultServeMux),
+		},
+	}
+
+	go log.Fatal(server.gracesvr.ListenAndServeTLS(certpath, keypath))
 
 	return server, nil
 }
 
 func (this *Server) Close() {
+	this.gracesvr.Stop(1 * time.Second)
 	this.syncIters.Lock()
 	for _, iter := range this.iterators {
 		iter.Close()
