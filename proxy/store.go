@@ -39,7 +39,7 @@ func NewClient(mo kv.MergeOperator, config map[string]interface{}) (kv.KVStore, 
 	}
 
 	rv.baseurl = fmt.Sprintf("http://locahost:%s", port)
-	_, err := rv.query(fmt.Sprintf("/open?password=%s", password))
+	_, err := rv.postData("/auth", []byte(password))
 	if nil != err {
 		return nil, err
 	}

@@ -58,6 +58,9 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 		passwordsalt: bbSecret,
 	}
 
+	http.HandleFunc("/auth", server.Authenticate)
+	http.HandleFunc("/logout", server.Logout)
+
 	http.Handle("/reader/get", server.AddSession(server.ReaderGetHandler))
 	http.Handle("/reader/new", server.AddSession(server.ReaderNewHandler))
 	http.Handle("/reader/prefix", server.AddSession(server.ReaderPrefixHandler))
