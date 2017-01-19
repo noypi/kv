@@ -96,7 +96,6 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 }
 
 func (this *Server) Close() {
-	this.gracesvr.Stop(1 * time.Second)
 	this.syncIters.Lock()
 	for _, iter := range this.iterators {
 		iter.Close()

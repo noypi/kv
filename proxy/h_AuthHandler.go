@@ -58,6 +58,4 @@ func (this *Server) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	session.Save(r, w)
 
-	this.gracesvr.Stop(1 * time.Second)
-
 }
