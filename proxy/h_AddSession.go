@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func (this *Server) AddSession(nexth http.HandlerFunc) http.HandlerFunc {
+func (this *Server) AddVerifySession(name string, nexth http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		defer func() {
@@ -15,7 +15,7 @@ func (this *Server) AddSession(nexth http.HandlerFunc) http.HandlerFunc {
 			}
 		}()
 
-		session, err := this.sessions.Get(r, "kvproxy")
+		session, err := this.sessions.Get(r, name)
 		if nil != err {
 			return
 		}

@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/noypi/webutil"
+
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/noypi/kv"
@@ -58,21 +60,22 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 		passwordsalt: bbSecret,
 	}
 
+	sessionname := "kvproxy"
 	http.HandleFunc("/auth", server.Authenticate)
-	http.HandleFunc("/logout", server.Logout)
+	http.HandleFunc("/logout", webutil.NoCache(server.Logout))
 
-	http.Handle("/reader/get", server.AddSession(server.ReaderGetHandler))
-	http.Handle("/reader/new", server.AddSession(server.ReaderNewHandler))
-	http.Handle("/reader/prefix", server.AddSession(server.ReaderPrefixHandler))
-	http.Handle("/reader/range", server.AddSession(server.ReaderRangeHandler))
+	http.Handle("/reader/get", server.AddVerifySession(sessionname, server.ReaderGetHandler))
+	http.Handle("/reader/new", server.AddVerifySession(sessionname, server.ReaderNewHandler))
+	http.Handle("/reader/prefix", server.AddVerifySession(sessionname, server.ReaderPrefixHandler))
+	http.Handle("/reader/range", server.AddVerifySession(sessionname, server.ReaderRangeHandler))
 
 	// iters
-	http.Handle("/iter/seek", server.AddSession(server.IterSeekHandler))
-	http.Handle("/iter/close", server.AddSession(server.IterCloseHandler))
-	http.Handle("/iter/key", server.AddSession(server.IterKeyHandler))
-	http.Handle("/iter/value", server.AddSession(server.IterValueHandler))
-	http.Handle("/iter/valid", server.AddSession(server.IterValidHandler))
-	http.Handle("/iter/next", server.AddSession(server.IterNextHandler))
+	http.Handle("/iter/seek", server.AddVerifySession(sessionname, server.IterSeekHandler))
+	http.Handle("/iter/close", server.AddVerifySession(sessionname, server.IterCloseHandler))
+	http.Handle("/iter/key", server.AddVerifySession(sessionname, server.IterKeyHandler))
+	http.Handle("/iter/value", server.AddVerifySession(sessionname, server.IterValueHandler))
+	http.Handle("/iter/valid", server.AddVerifySession(sessionname, server.IterValidHandler))
+	http.Handle("/iter/next", server.AddVerifySession(sessionname, server.IterNextHandler))
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 	server.sessions = sessions.NewCookieStore(bbSecret)
