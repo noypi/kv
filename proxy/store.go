@@ -1,12 +1,12 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 
-	"github.com/gorilla/sessions"
 	"github.com/noypi/kv"
 )
 
@@ -16,9 +16,6 @@ type _store struct {
 	client  *http.Client
 	mo      kv.MergeOperator
 	baseurl string
-
-	sessions *sessions.CookieStore
-	opendb   map[string]kv.KVStore
 }
 
 func NewClient(mo kv.MergeOperator, config map[string]interface{}) (kv.KVStore, error) {
@@ -55,11 +52,15 @@ func (this *_store) Close() error {
 }
 
 func (this *_store) Reader() (kv.KVReader, error) {
-	panic("implement")
-	return nil, nil
-	/*return &_reader{
+	bb, err := this.query("/reader/new")
+	if nil != err {
+		return nil, err
+	}
+	rv := _reader{
 		store: this,
-	}, nil*/
+		ID:    string(bb),
+	}
+	return &rv, nil
 }
 
 func (this *_store) Writer() (kv.KVWriter, error) {
@@ -82,6 +83,23 @@ func (this dummymergeop) Name() string {
 
 func (this _store) query(q string) (bb []byte, err error) {
 	resp, err := this.client.Get(fmt.Sprintf("%s%s", this.baseurl, q))
+	if nil != err {
+		return
+	}
+	defer resp.Body.Close()
+
+	if 200 != resp.StatusCode {
+		err = fmt.Errorf("%s", resp.Status)
+		return
+	}
+
+	bb, err = ioutil.ReadAll(resp.Body)
+	return
+}
+
+func (this _store) postData(url string, data []byte) (bb []byte, err error) {
+	buf := bytes.NewBuffer(data)
+	resp, err := this.client.Post(url, "application/octet-stream", buf)
 	if nil != err {
 		return
 	}

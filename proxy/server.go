@@ -14,21 +14,27 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
-	"bitbucket.org/noypi/handlers"
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/noypi/kv"
+	"github.com/twinj/uuid"
 )
 
 type Server struct {
-	path         string
 	passwordhash string
 	passwordsalt []byte
+	db           kv.KVStore
 	server       *http.Server
 	sessions     *sessions.CookieStore
-	opendb       map[string]kv.KVStore
+	iterators    map[string]kv.KVIterator
+	readers      map[string]kv.KVReader
+
+	syncDb    sync.Mutex
+	syncIters sync.Mutex
+	syncRdrs  sync.Mutex
 }
 
 func NewServer(store kv.KVStore, port, password string) (*Server, error) {
@@ -44,18 +50,24 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 
 	server := &Server{
 		passwordhash: fmt.Sprintf("%x", h.Sum(nil)),
-		opendb:       map[string]kv.KVStore{},
+		db:           store,
+		iterators:    map[string]kv.KVIterator{},
+		readers:      map[string]kv.KVReader{},
 		passwordsalt: bbSecret,
 	}
 
-	http.Handle("/get", handlers.HttpSeq(
-		server.GetSessionHandler,
-		server.GetHandler,
-	))
-	http.Handle("/put", handlers.HttpSeq(
-		server.GetSessionHandler,
-		server.PutHandler,
-	))
+	http.Handle("/reader/get", server.AddSession(server.ReaderGetHandler))
+	http.Handle("/reader/new", server.AddSession(server.ReaderNewHandler))
+	http.Handle("/reader/prefix", server.AddSession(server.ReaderPrefixHandler))
+	http.Handle("/reader/range", server.AddSession(server.ReaderRangeHandler))
+
+	// iters
+	http.Handle("/iter/seek", server.AddSession(server.IterSeekHandler))
+	http.Handle("/iter/close", server.AddSession(server.IterCloseHandler))
+	http.Handle("/iter/key", server.AddSession(server.IterKeyHandler))
+	http.Handle("/iter/value", server.AddSession(server.IterValueHandler))
+	http.Handle("/iter/valid", server.AddSession(server.IterValidHandler))
+	http.Handle("/iter/next", server.AddSession(server.IterNextHandler))
 
 	srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 	server.sessions = sessions.NewCookieStore(bbSecret)
@@ -64,6 +76,84 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 	go log.Fatal(srv.ListenAndServeTLS(certpath, keypath))
 
 	return server, nil
+}
+
+func (this *Server) Close() {
+	this.syncIters.Lock()
+	for _, iter := range this.iterators {
+		iter.Close()
+	}
+	this.syncIters.Unlock()
+
+	this.syncRdrs.Lock()
+	for _, rdr := range this.readers {
+		rdr.Close()
+	}
+	this.syncRdrs.Unlock()
+}
+
+func (this *Server) getIter(id string) (iter kv.KVIterator, has bool) {
+	this.syncIters.Lock()
+	defer this.syncIters.Unlock()
+	iter, has = this.iterators[id]
+	return
+}
+func (this *Server) newPrefixIter(rdr kv.KVReader, prefix []byte) (iter kv.KVIterator, id string) {
+	this.syncIters.Lock()
+	defer this.syncIters.Unlock()
+	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+
+	iter = rdr.PrefixIterator(prefix)
+	this.iterators[id] = iter
+
+	return
+}
+
+func (this *Server) newRangeIter(rdr kv.KVReader, start, end []byte) (iter kv.KVIterator, id string) {
+	this.syncIters.Lock()
+	defer this.syncIters.Unlock()
+	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+
+	iter = rdr.RangeIterator(start, end)
+	this.iterators[id] = iter
+
+	return
+}
+
+func (this *Server) getRdr(id string) (rdr kv.KVReader, has bool) {
+	this.syncRdrs.Lock()
+	defer this.syncRdrs.Unlock()
+	rdr, has = this.readers[id]
+	return
+}
+
+func (this *Server) closeIter(id string) {
+	this.syncIters.Lock()
+	if iter, has := this.iterators[id]; has {
+		iter.Close()
+		delete(this.iterators, id)
+	}
+	this.syncIters.Unlock()
+}
+
+func (this *Server) closeRdr(id string) {
+	this.syncRdrs.Lock()
+	if rdr, has := this.readers[id]; has {
+		rdr.Close()
+		delete(this.readers, id)
+	}
+	this.syncRdrs.Unlock()
+}
+
+func (this *Server) newRdr() (rdr kv.KVReader, id string, err error) {
+	this.syncRdrs.Lock()
+	defer this.syncRdrs.Unlock()
+	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+	if rdr, err = this.db.Reader(); nil == err {
+		this.readers[id] = rdr
+	}
+
+	return
 }
 
 func generateTempCert(org, hosts string, bits int) (keypath, certpath string) {

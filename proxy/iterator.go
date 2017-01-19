@@ -1,21 +1,23 @@
 package proxy
 
-/*
 import (
-	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"encoding/base64"
+	"fmt"
 )
 
 type _iterator struct {
-	store    *_store
-	iterator iterator.Iterator
+	store  *_store
+	iterID string
 }
 
 func (ldi *_iterator) Seek(key []byte) {
-	ldi.iterator.Seek(key)
+	ldi.store.query(fmt.Sprintf("/iter/seek?key=%s",
+		base64.RawURLEncoding.EncodeToString(key),
+	))
 }
 
 func (ldi *_iterator) Next() {
-	ldi.iterator.Next()
+	ldi.store.query("/iter/next?id=" + ldi.iterID)
 }
 
 func (ldi *_iterator) Current() ([]byte, []byte, bool) {
@@ -26,20 +28,32 @@ func (ldi *_iterator) Current() ([]byte, []byte, bool) {
 }
 
 func (ldi *_iterator) Key() []byte {
-	return ldi.iterator.Key()
+	bbKey, err := ldi.store.query("/iter/key?id=" + ldi.iterID)
+	if nil != err {
+		return nil
+	}
+	return bbKey
 }
 
 func (ldi *_iterator) Value() []byte {
-	return ldi.iterator.Value()
+	bbVal, err := ldi.store.query("/iter/value?id=" + ldi.iterID)
+	if nil != err {
+		return nil
+	}
+	return bbVal
 }
 
 func (ldi *_iterator) Valid() bool {
-	return ldi.iterator.Valid()
+	bbValid, err := ldi.store.query("/iter/valid?id=" + ldi.iterID)
+	if nil != err || "true" != string(bbValid) {
+		return false
+	}
+	return true
 }
 
 func (ldi *_iterator) Close() error {
-	ldi.iterator.Release()
-	return nil
+	_, err := ldi.store.query("/iter/close?id=" + ldi.iterID)
+	return err
 }
 
 func (ldi *_iterator) Count() int {
@@ -59,4 +73,3 @@ func (ldi *_iterator) Reset() {
 func (ldi *_iterator) Reset0() {
 	panic("not implemented")
 }
-*/
