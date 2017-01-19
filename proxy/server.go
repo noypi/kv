@@ -17,11 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/noypi/webutil"
-
 	"github.com/gorilla/context"
-	"github.com/gorilla/sessions"
 	"github.com/noypi/kv"
+	. "github.com/noypi/webutil"
 	"github.com/twinj/uuid"
 	"gopkg.in/tylerb/graceful.v1"
 )
@@ -32,7 +30,6 @@ type Server struct {
 	db           kv.KVStore
 	gracesvr     *graceful.Server
 	//server       *http.Server
-	sessions  *sessions.CookieStore
 	iterators map[string]kv.KVIterator
 	readers   map[string]kv.KVReader
 
@@ -60,25 +57,37 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 		passwordsalt: bbSecret,
 	}
 
-	sessionname := "kvproxy"
+	sessionname := "kvproxy-" + uuid.NewV4().String()
 	http.HandleFunc("/auth", server.Authenticate)
-	http.HandleFunc("/logout", webutil.NoCache(server.Logout))
+	http.Handle("/logout", MidSeqFunc(
+		server.Logout,
+		MidFn(AddCookieSession, sessionname),
+		MidFn(server.Validate),
+		MidFn(NoCache),
+	))
 
-	http.Handle("/reader/get", server.AddVerifySession(sessionname, server.ReaderGetHandler))
-	http.Handle("/reader/new", server.AddVerifySession(sessionname, server.ReaderNewHandler))
-	http.Handle("/reader/prefix", server.AddVerifySession(sessionname, server.ReaderPrefixHandler))
-	http.Handle("/reader/range", server.AddVerifySession(sessionname, server.ReaderRangeHandler))
+	fnCommon := func(h http.HandlerFunc) http.Handler {
+		return MidSeqFunc(h,
+			MidFn(AddCookieSession, sessionname),
+			MidFn(server.Validate),
+		)
+	}
 
-	// iters
-	http.Handle("/iter/seek", server.AddVerifySession(sessionname, server.IterSeekHandler))
-	http.Handle("/iter/close", server.AddVerifySession(sessionname, server.IterCloseHandler))
-	http.Handle("/iter/key", server.AddVerifySession(sessionname, server.IterKeyHandler))
-	http.Handle("/iter/value", server.AddVerifySession(sessionname, server.IterValueHandler))
-	http.Handle("/iter/valid", server.AddVerifySession(sessionname, server.IterValidHandler))
-	http.Handle("/iter/next", server.AddVerifySession(sessionname, server.IterNextHandler))
+	// reader
+	http.Handle("/reader/get", fnCommon(server.ReaderGetHandler))
+	http.Handle("/reader/new", fnCommon(server.ReaderNewHandler))
+	http.Handle("/reader/prefix", fnCommon(server.ReaderPrefixHandler))
+	http.Handle("/reader/range", fnCommon(server.ReaderRangeHandler))
+
+	// iterator
+	http.Handle("/iter/seek", fnCommon(server.IterSeekHandler))
+	http.Handle("/iter/close", fnCommon(server.IterCloseHandler))
+	http.Handle("/iter/key", fnCommon(server.IterKeyHandler))
+	http.Handle("/iter/value", fnCommon(server.IterValueHandler))
+	http.Handle("/iter/valid", fnCommon(server.IterValidHandler))
+	http.Handle("/iter/next", fnCommon(server.IterNextHandler))
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
-	server.sessions = sessions.NewCookieStore(bbSecret)
 
 	keypath, certpath := generateTempCert("noypi", "localhost", 2048)
 

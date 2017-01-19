@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
+
+	"github.com/gorilla/sessions"
+	"github.com/noypi/webutil"
 )
 
 func (this Server) validatePassword(pass string) bool {
@@ -16,18 +18,9 @@ func (this Server) validatePassword(pass string) bool {
 }
 
 func (this *Server) Authenticate(w http.ResponseWriter, r *http.Request) {
-	var err error
-	defer func() {
-		if nil != err {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-		}
-	}()
+	ctx := r.Context()
+	session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
-	session, err := this.sessions.Get(r, "kvproxy")
-	if nil != err {
-		return
-	}
 	bbPass, _ := ioutil.ReadAll(r.Body)
 	if this.validatePassword(string(bbPass)) {
 		session.Values["authenticated"] = true
@@ -39,20 +32,26 @@ func (this *Server) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (this *Server) Logout(w http.ResponseWriter, r *http.Request) {
-	var err error
-	defer func() {
-		if nil != err {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-		}
-	}()
+func (this *Server) Validate(nexth http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
-	session, err := this.sessions.Get(r, "kvproxy")
-	if nil != err {
-		return
+		bValid, _ := session.Values["authenticated"].(bool)
+		if !bValid {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("invalid session."))
+			webutil.LogErr(ctx, "Server.Validate() unauthenticated user.")
+			return
+		}
+
+		nexth(w, r)
 	}
-	session.Values["authenticated"] = false
+}
+
+func (this *Server) Logout(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	session := ctx.Value(webutil.SessionName).(*sessions.Session)
 	for k, _ := range session.Values {
 		delete(session.Values, k)
 	}
