@@ -2,8 +2,6 @@ package proxy
 
 import (
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -25,18 +23,13 @@ func (this *Server) AuthPubkey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pubasn1, err := x509.MarshalPKIXPublicKey(&this.privkey.PublicKey)
+	bbPubk, err := this.privkey.PubKey().Marshal()
 	if nil != err {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	bbPub := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
-		Bytes: pubasn1,
-	})
-
-	w.Write(bbPub)
+	w.Write(bbPubk)
 }
 
 func (this *Server) Authenticate(w http.ResponseWriter, r *http.Request) {

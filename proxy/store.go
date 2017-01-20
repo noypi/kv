@@ -2,17 +2,13 @@ package proxy
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 
 	"github.com/noypi/kv"
+	"github.com/noypi/util"
 )
 
 type _store struct {
@@ -54,19 +50,16 @@ func NewClient(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVSto
 		if nil != err {
 			return nil, err
 		}
-		hash := sha256.New()
-
-		block, _ := pem.Decode(bbPubKey)
-		pubKif, err := x509.ParsePKIXPublicKey(block.Bytes)
+		pubk, err := util.ParsePublickey(bbPubKey)
 		if nil != err {
 			return nil, err
 		}
-		bbPassEnc, err := rsa.EncryptOAEP(hash, rand.Reader, pubKif.(*rsa.PublicKey), []byte(password), []byte(""))
+		bbPassCipher, err := pubk.Encrypt([]byte(password))
 		if nil != err {
 			return nil, err
 		}
 
-		_, err = rv.postData("/auth", bbPassEnc)
+		_, err = rv.postData("/auth", bbPassCipher)
 		if nil != err {
 			return nil, err
 		}

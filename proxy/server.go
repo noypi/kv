@@ -2,17 +2,18 @@ package proxy
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/gorilla/context"
 	"github.com/noypi/kv"
+	"github.com/noypi/util"
 	. "github.com/noypi/webutil"
 	"github.com/twinj/uuid"
 	"gopkg.in/tylerb/graceful.v1"
@@ -29,7 +30,7 @@ type Server struct {
 
 	//sec
 	bUseTls bool
-	privkey *rsa.PrivateKey
+	privkey *util.PrivKey
 
 	syncDb    sync.Mutex
 	syncIters sync.Mutex
@@ -100,7 +101,8 @@ func NewServer(store kv.KVStore, port, password string, bUseTls bool) (server *S
 		keypath, certpath := generateTempCert("noypi", "localhost", 2048)
 		go log.Fatal(server.gracesvr.ListenAndServeTLS(certpath, keypath))
 	} else {
-		if server.privkey, err = rsa.GenerateKey(rand.Reader, 2048); nil != err {
+
+		if server.privkey, err = util.GenPrivKey(2048); nil != err {
 			log.Fatal("GenerateKey err=", err)
 			return
 		}
@@ -189,22 +191,34 @@ func (this *Server) newRdr() (rdr kv.KVReader, id string, err error) {
 }
 
 func generateTempCert(org, hosts string, bits int) (keypath, certpath string) {
-	certTmpF, err := ioutil.TempFile(".", "tmp-cert.pem")
-	if nil != err {
-		log.Fatal("failed to create temp cert file. err=", err)
-	}
-	defer certTmpF.Close()
+	var keyTmpF, certTmpF *os.File
+	err := func() (err error) {
+		certTmpF, err = ioutil.TempFile(".", "tmp-cert.pem")
+		if nil != err {
+			return
+		}
+		defer certTmpF.Close()
 
-	keyTmpF, err := ioutil.TempFile(".", "tmp-key.pem")
+		keyTmpF, err = ioutil.TempFile(".", "tmp-key.pem")
+		if nil != err {
+			return
+		}
+		defer keyTmpF.Close()
+
+		bbKey, bbCert, err := util.GenerateCert(org, hosts, bits)
+		if nil != err {
+			return
+		}
+
+		keyTmpF.Write(bbKey)
+		certTmpF.Write(bbCert)
+		keypath = keyTmpF.Name()
+		certpath = certTmpF.Name()
+		return nil
+	}()
 	if nil != err {
 		log.Fatal("failed to create temp key file. err=", err)
 	}
-	defer keyTmpF.Close()
 
-	bbKey, bbCert := GenerateCert(org, hosts, bits)
-
-	keyTmpF.Write(bbKey)
-	certTmpF.Write(bbCert)
-
-	return keyTmpF.Name(), certTmpF.Name()
+	return
 }
