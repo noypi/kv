@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
@@ -26,12 +27,16 @@ type Server struct {
 	iterators map[string]kv.KVIterator
 	readers   map[string]kv.KVReader
 
+	//sec
+	bUseTls bool
+	privkey *rsa.PrivateKey
+
 	syncDb    sync.Mutex
 	syncIters sync.Mutex
 	syncRdrs  sync.Mutex
 }
 
-func NewServer(store kv.KVStore, port, password string) (*Server, error) {
+func NewServer(store kv.KVStore, port, password string, bUseTls bool) (server *Server, err error) {
 
 	bbSecret := make([]byte, 10)
 	if _, err := rand.Read(bbSecret); nil == err {
@@ -42,12 +47,13 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 	h.Write(bbSecret)
 	h.Write([]byte(password))
 
-	server := &Server{
+	server = &Server{
 		passwordhash: fmt.Sprintf("%x", h.Sum(nil)),
 		db:           store,
 		iterators:    map[string]kv.KVIterator{},
 		readers:      map[string]kv.KVReader{},
 		passwordsalt: bbSecret,
+		bUseTls:      bUseTls,
 	}
 
 	sessionname := "kvproxy-" + uuid.NewV4().String()
@@ -82,8 +88,6 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 
-	keypath, certpath := generateTempCert("noypi", "localhost", 2048)
-
 	server.gracesvr = &graceful.Server{
 		Timeout: 5 * time.Second,
 		Server: &http.Server{
@@ -92,9 +96,18 @@ func NewServer(store kv.KVStore, port, password string) (*Server, error) {
 		},
 	}
 
-	go log.Fatal(server.gracesvr.ListenAndServeTLS(certpath, keypath))
+	if server.bUseTls {
+		keypath, certpath := generateTempCert("noypi", "localhost", 2048)
+		go log.Fatal(server.gracesvr.ListenAndServeTLS(certpath, keypath))
+	} else {
+		if server.privkey, err = rsa.GenerateKey(rand.Reader, 2048); nil != err {
+			log.Fatal("GenerateKey err=", err)
+			return
+		}
+		go log.Fatal(server.gracesvr.ListenAndServe())
+	}
 
-	return server, nil
+	return
 }
 
 func (this *Server) Close() {

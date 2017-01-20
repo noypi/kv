@@ -2,6 +2,11 @@ package proxy
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,7 +23,7 @@ type _store struct {
 	baseurl string
 }
 
-func NewClient(mo kv.MergeOperator, config map[string]interface{}) (kv.KVStore, error) {
+func NewClient(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, err error) {
 	port, ok := config["port"].(string)
 	if !ok {
 		return nil, fmt.Errorf("must specify port")
@@ -29,22 +34,50 @@ func NewClient(mo kv.MergeOperator, config map[string]interface{}) (kv.KVStore, 
 		return nil, fmt.Errorf("must specify password")
 	}
 
+	bUseTls, _ := config["usetls"].(bool)
+
 	jar, _ := cookiejar.New(nil)
 	rv := _store{
 		port: port,
 		client: &http.Client{
 			Jar: jar,
 		},
-		mo: mo,
+		mo:      mo,
+		baseurl: fmt.Sprintf("http://locahost:%s", port),
+	}
+	prv = &rv
+
+	// if not using tls
+	// get public key and encrypt password
+	if !bUseTls {
+		bbPubKey, err := rv.query("/auth/pubkey")
+		if nil != err {
+			return nil, err
+		}
+		hash := sha256.New()
+
+		block, _ := pem.Decode(bbPubKey)
+		pubKif, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if nil != err {
+			return nil, err
+		}
+		bbPassEnc, err := rsa.EncryptOAEP(hash, rand.Reader, pubKif.(*rsa.PublicKey), []byte(password), []byte(""))
+		if nil != err {
+			return nil, err
+		}
+
+		_, err = rv.postData("/auth", bbPassEnc)
+		if nil != err {
+			return nil, err
+		}
+
+	} else {
+		if _, err = rv.postData("/auth", []byte(password)); nil != err {
+			return
+		}
 	}
 
-	rv.baseurl = fmt.Sprintf("http://locahost:%s", port)
-	_, err := rv.postData("/auth", []byte(password))
-	if nil != err {
-		return nil, err
-	}
-
-	return &rv, nil
+	return
 }
 
 func (this *_store) Close() error {
