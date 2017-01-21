@@ -58,13 +58,14 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 	}
 
 	sessionname := "kvproxy-" + uuid.NewV4().String()
-	http.HandleFunc("/", server.hRoot)
-	http.HandleFunc("/auth/pubkey", server.hAuthPubkey)
-	http.Handle("/auth", MidSeqFunc(
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", server.hRoot)
+	mux.HandleFunc("/auth/pubkey", server.hAuthPubkey)
+	mux.Handle("/auth", MidSeqFunc(
 		server.hAuthenticate,
 		MidFn(AddCookieSession, sessionname),
 	))
-	http.Handle("/logout", MidSeqFunc(
+	mux.Handle("/logout", MidSeqFunc(
 		server.hLogout,
 		MidFn(AddCookieSession, sessionname),
 		MidFn(server.hValidate),
@@ -79,18 +80,19 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 	}
 
 	// reader
-	http.Handle("/reader/get", fnCommon(server.hReaderGetHandler))
-	http.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
-	http.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
-	http.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
+	mux.Handle("/reader/get", fnCommon(server.hReaderGetHandler))
+	mux.Handle("/reader/multiget", fnCommon(server.hReaderMultiGetHandler))
+	mux.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
+	mux.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
+	mux.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
 
 	// iterator
-	http.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
-	http.Handle("/iter/close", fnCommon(server.hIterCloseHandler))
-	http.Handle("/iter/key", fnCommon(server.hIterKeyHandler))
-	http.Handle("/iter/value", fnCommon(server.hIterValueHandler))
-	http.Handle("/iter/valid", fnCommon(server.hIterValidHandler))
-	http.Handle("/iter/next", fnCommon(server.hIterNextHandler))
+	mux.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
+	mux.Handle("/iter/close", fnCommon(server.hIterCloseHandler))
+	mux.Handle("/iter/key", fnCommon(server.hIterKeyHandler))
+	mux.Handle("/iter/value", fnCommon(server.hIterValueHandler))
+	mux.Handle("/iter/valid", fnCommon(server.hIterValidHandler))
+	mux.Handle("/iter/next", fnCommon(server.hIterNextHandler))
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 
@@ -98,7 +100,7 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 		Timeout: 5 * time.Second,
 		Server: &http.Server{
 			Addr:    ":" + strconv.Itoa(port),
-			Handler: context.ClearHandler(http.DefaultServeMux),
+			Handler: context.ClearHandler(mux),
 		},
 	}
 

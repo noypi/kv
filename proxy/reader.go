@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/gob"
 	"fmt"
 
 	"github.com/noypi/kv"
@@ -21,19 +23,25 @@ func (r *_reader) Get(key []byte) ([]byte, error) {
 }
 
 func (r *_reader) MultiGet(keys [][]byte) ([][]byte, error) {
-	panic("need to implement")
-	vals := make([][]byte, len(keys))
-
-	for i, key := range keys {
-		val, err := r.Get(key)
-		if err != nil {
-			return nil, err
-		}
-
-		vals[i] = val
+	buf := bytes.NewBufferString("")
+	if err := gob.NewEncoder(buf).Encode(keys); nil != err {
+		return nil, err
 	}
 
-	return vals, nil
+	bb, err := r.store.postData(fmt.Sprintf("/reader/multiget?id=%s",
+		r.ID,
+	), buf.Bytes())
+	if nil != err {
+		return nil, err
+	}
+
+	var result = [][]byte{}
+	bufDec := bytes.NewBuffer(bb)
+	if err = gob.NewDecoder(bufDec).Decode(&result); nil != err {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (r *_reader) PrefixIterator(prefix []byte) kv.KVIterator {

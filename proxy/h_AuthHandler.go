@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -38,9 +37,6 @@ func (this *Server) hAuthPubkey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (this *Server) hAuthenticate(w http.ResponseWriter, r *http.Request) {
-	log.Println("+hAuthenticate()")
-	defer log.Println("-hAuthenticate()")
-
 	ctx := r.Context()
 	session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
