@@ -8,16 +8,19 @@ import (
 type _iterator struct {
 	store  *_store
 	iterID string
+	rdrID  string
 }
 
 func (ldi *_iterator) Seek(key []byte) {
-	ldi.store.query(fmt.Sprintf("/iter/seek?key=%s",
+	ldi.store.query(fmt.Sprintf("/iter/seek?key=%s&rdrid=%s&id=%s",
 		base64.RawURLEncoding.EncodeToString(key),
+		ldi.rdrID,
+		ldi.iterID,
 	))
 }
 
 func (ldi *_iterator) Next() {
-	ldi.store.query("/iter/next?id=" + ldi.iterID)
+	ldi.store.query(fmt.Sprintf("/iter/next?rdrid=%s&id=%s", ldi.rdrID, ldi.iterID))
 }
 
 func (ldi *_iterator) Current() ([]byte, []byte, bool) {
@@ -28,7 +31,7 @@ func (ldi *_iterator) Current() ([]byte, []byte, bool) {
 }
 
 func (ldi *_iterator) Key() []byte {
-	bbKey, err := ldi.store.query("/iter/key?id=" + ldi.iterID)
+	bbKey, err := ldi.store.query(fmt.Sprintf("/iter/key?rdrid=%s&id=%s", ldi.rdrID, ldi.iterID))
 	if nil != err {
 		return nil
 	}
@@ -36,7 +39,7 @@ func (ldi *_iterator) Key() []byte {
 }
 
 func (ldi *_iterator) Value() []byte {
-	bbVal, err := ldi.store.query("/iter/value?id=" + ldi.iterID)
+	bbVal, err := ldi.store.query(fmt.Sprintf("/iter/value?rdrid=%s&id=%s", ldi.rdrID, ldi.iterID))
 	if nil != err {
 		return nil
 	}
@@ -44,7 +47,7 @@ func (ldi *_iterator) Value() []byte {
 }
 
 func (ldi *_iterator) Valid() bool {
-	bbValid, err := ldi.store.query("/iter/valid?id=" + ldi.iterID)
+	bbValid, err := ldi.store.query(fmt.Sprintf("/iter/valid?rdrid=%s&id=%s", ldi.rdrID, ldi.iterID))
 	if nil != err || "true" != string(bbValid) {
 		return false
 	}
@@ -52,7 +55,7 @@ func (ldi *_iterator) Valid() bool {
 }
 
 func (ldi *_iterator) Close() error {
-	_, err := ldi.store.query("/iter/close?id=" + ldi.iterID)
+	_, err := ldi.store.query(fmt.Sprintf("/iter/close?rdrid=%s&id=%s", ldi.rdrID, ldi.iterID))
 	return err
 }
 

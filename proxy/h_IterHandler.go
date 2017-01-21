@@ -21,8 +21,9 @@ func (this *Server) hIterSeekHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := r.FormValue("id")
+	rdrid := r.FormValue("rdrid")
 
-	iter, has := this.getIter(id)
+	iter, has := this.getIter(rdrid, id)
 	if !has {
 		err = fmt.Errorf("iterator not found.")
 		return
@@ -41,7 +42,8 @@ func (this *Server) hIterKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	id := r.FormValue("id")
-	iter, has := this.getIter(id)
+	rdrid := r.FormValue("rdrid")
+	iter, has := this.getIter(rdrid, id)
 	if !has {
 		err = fmt.Errorf("iterator not found.")
 		return
@@ -59,8 +61,9 @@ func (this *Server) hIterValidHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	id := r.FormValue("id")
+	rdrid := r.FormValue("rdrid")
 
-	iter, has := this.getIter(id)
+	iter, has := this.getIter(rdrid, id)
 	if !has {
 		err = fmt.Errorf("iterator not found.")
 		return
@@ -82,8 +85,9 @@ func (this *Server) hIterValueHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	id := r.FormValue("id")
+	rdrid := r.FormValue("rdrid")
 
-	iter, has := this.getIter(id)
+	iter, has := this.getIter(rdrid, id)
 	if !has {
 		err = fmt.Errorf("iterator not found.")
 		return
@@ -101,8 +105,9 @@ func (this *Server) hIterNextHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	id := r.FormValue("id")
+	rdrid := r.FormValue("rdrid")
 
-	iter, has := this.getIter(id)
+	iter, has := this.getIter(rdrid, id)
 	if !has {
 		err = fmt.Errorf("iterator not found.")
 		return
@@ -120,5 +125,6 @@ func (this *Server) hIterCloseHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	id := r.FormValue("id")
-	this.closeIter(id)
+	rdrid := r.FormValue("rdrid")
+	this.closeIter(rdrid, id)
 }

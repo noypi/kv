@@ -55,6 +55,7 @@ func (r *_reader) PrefixIterator(prefix []byte) kv.KVIterator {
 	rv := _iterator{
 		store:  r.store,
 		iterID: string(bb),
+		rdrID:  r.ID,
 	}
 	return &rv
 }
@@ -71,13 +72,16 @@ func (r *_reader) RangeIterator(start, end []byte) kv.KVIterator {
 	rv := _iterator{
 		store:  r.store,
 		iterID: string(bb),
+		rdrID:  r.ID,
 	}
 	return &rv
 }
 
 func (r *_reader) Close() error {
-	panic("not implemented")
-	return nil
+	_, err := r.store.query(fmt.Sprintf("/reader/close?sid=%s",
+		r.ID,
+	))
+	return err
 }
 
 func (r *_reader) PrefixIterator0(prefix []byte) kv.KVIterator {

@@ -90,14 +90,6 @@ func (this *Server) hReaderMultiGetHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (this *Server) hReaderCloseHandler(w http.ResponseWriter, r *http.Request) {
-	var err error
-	defer func() {
-		if nil != err {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-		}
-	}()
-
 	id := r.FormValue("id")
 	this.closeRdr(id)
 }
@@ -117,12 +109,11 @@ func (this *Server) hReaderPrefixHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rdr, has := this.getRdr(rdrid)
-	if !has {
+	if _, has := this.getRdr(rdrid); !has {
 		err = fmt.Errorf("reader not found.")
 		return
 	}
-	_, id := this.newPrefixIter(rdr, bbPrefix)
+	_, id := this.newPrefixIter(rdrid, bbPrefix)
 	w.Write([]byte(id))
 }
 
@@ -145,11 +136,10 @@ func (this *Server) hReaderRangeHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	rdr, has := this.getRdr(rdrid)
-	if !has {
+	if _, has := this.getRdr(rdrid); !has {
 		err = fmt.Errorf("reader not found.")
 		return
 	}
-	_, id := this.newRangeIter(rdr, bbStart, bbEnd)
+	_, id := this.newRangeIter(rdrid, bbStart, bbEnd)
 	w.Write([]byte(id))
 }

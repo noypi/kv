@@ -20,22 +20,25 @@ import (
 	"gopkg.in/tylerb/graceful.v1"
 )
 
+type _openedReader struct {
+	rdr       kv.KVReader
+	iterators map[string]kv.KVIterator
+}
+
 type Server struct {
 	passwordhash string
 	passwordsalt []byte
 	db           kv.KVStore
 	gracesvr     *graceful.Server
 	//server       *http.Server
-	iterators map[string]kv.KVIterator
-	readers   map[string]kv.KVReader
+	readers map[string]*_openedReader
 
 	//sec
 	bUseTls bool
 	privkey *util.PrivKey
 
-	syncDb    sync.Mutex
-	syncIters sync.Mutex
-	syncRdrs  sync.Mutex
+	syncDb   sync.Mutex
+	syncRdrs sync.Mutex
 }
 
 func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (server *Server, err error) {
@@ -51,8 +54,7 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 	server = &Server{
 		passwordhash: fmt.Sprintf("%x", h.Sum(nil)),
 		db:           store,
-		iterators:    map[string]kv.KVIterator{},
-		readers:      map[string]kv.KVReader{},
+		readers:      map[string]*_openedReader{},
 		passwordsalt: bbSecret,
 		bUseTls:      bUseTls,
 	}
@@ -85,6 +87,7 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 	mux.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
 	mux.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
 	mux.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
+	mux.Handle("/reader/close", fnCommon(server.hReaderRangeHandler))
 
 	// iterator
 	mux.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
@@ -120,43 +123,50 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 
 func (this *Server) Close() {
 	this.gracesvr.Stop(1 * time.Second)
-	this.syncIters.Lock()
-	for _, iter := range this.iterators {
-		iter.Close()
-	}
-	this.syncIters.Unlock()
 
 	this.syncRdrs.Lock()
 	for _, rdr := range this.readers {
-		rdr.Close()
+		for _, iter := range rdr.iterators {
+			iter.Close()
+		}
+		rdr.iterators = nil
+		rdr.rdr.Close()
+		rdr.rdr = nil
 	}
+	this.readers = nil
 	this.syncRdrs.Unlock()
 }
 
-func (this *Server) getIter(id string) (iter kv.KVIterator, has bool) {
-	this.syncIters.Lock()
-	defer this.syncIters.Unlock()
-	iter, has = this.iterators[id]
+func (this *Server) getIter(rdrid, id string) (iter kv.KVIterator, has bool) {
+	this.syncRdrs.Lock()
+	defer this.syncRdrs.Unlock()
+	openedReader, has := this.readers[rdrid]
+	if !has {
+		return
+	}
+	iter, has = openedReader.iterators[id]
 	return
 }
-func (this *Server) newPrefixIter(rdr kv.KVReader, prefix []byte) (iter kv.KVIterator, id string) {
-	this.syncIters.Lock()
-	defer this.syncIters.Unlock()
-	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+func (this *Server) newPrefixIter(rdrid string, prefix []byte) (iter kv.KVIterator, id string) {
+	this.syncRdrs.Lock()
+	defer this.syncRdrs.Unlock()
 
-	iter = rdr.PrefixIterator(prefix)
-	this.iterators[id] = iter
+	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+	openedReader, _ := this.readers[rdrid]
+	iter = openedReader.rdr.PrefixIterator(prefix)
+	openedReader.iterators[id] = iter
 
 	return
 }
 
-func (this *Server) newRangeIter(rdr kv.KVReader, start, end []byte) (iter kv.KVIterator, id string) {
-	this.syncIters.Lock()
-	defer this.syncIters.Unlock()
-	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+func (this *Server) newRangeIter(rdrid string, start, end []byte) (iter kv.KVIterator, id string) {
+	this.syncRdrs.Lock()
+	defer this.syncRdrs.Unlock()
 
-	iter = rdr.RangeIterator(start, end)
-	this.iterators[id] = iter
+	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
+	openedReader, _ := this.readers[rdrid]
+	iter = openedReader.rdr.RangeIterator(start, end)
+	openedReader.iterators[id] = iter
 
 	return
 }
@@ -164,23 +174,32 @@ func (this *Server) newRangeIter(rdr kv.KVReader, start, end []byte) (iter kv.KV
 func (this *Server) getRdr(id string) (rdr kv.KVReader, has bool) {
 	this.syncRdrs.Lock()
 	defer this.syncRdrs.Unlock()
-	rdr, has = this.readers[id]
+	openedReader, has := this.readers[id]
+	if has {
+		rdr = openedReader.rdr
+	}
 	return
 }
 
-func (this *Server) closeIter(id string) {
-	this.syncIters.Lock()
-	if iter, has := this.iterators[id]; has {
-		iter.Close()
-		delete(this.iterators, id)
+func (this *Server) closeIter(rdrid, id string) {
+	this.syncRdrs.Lock()
+	if openedReader, has := this.readers[rdrid]; has {
+		if iter, has := openedReader.iterators[id]; has {
+			iter.Close()
+			delete(openedReader.iterators, id)
+		}
 	}
-	this.syncIters.Unlock()
+	this.syncRdrs.Unlock()
 }
 
 func (this *Server) closeRdr(id string) {
 	this.syncRdrs.Lock()
 	if rdr, has := this.readers[id]; has {
-		rdr.Close()
+		for _, iter := range rdr.iterators {
+			iter.Close()
+		}
+		rdr.iterators = nil
+		rdr.rdr.Close()
 		delete(this.readers, id)
 	}
 	this.syncRdrs.Unlock()
@@ -191,7 +210,10 @@ func (this *Server) newRdr() (rdr kv.KVReader, id string, err error) {
 	defer this.syncRdrs.Unlock()
 	id = fmt.Sprintf("%x", uuid.NewV4().Bytes())
 	if rdr, err = this.db.Reader(); nil == err {
-		this.readers[id] = rdr
+		this.readers[id] = &_openedReader{
+			rdr:       rdr,
+			iterators: map[string]kv.KVIterator{},
+		}
 	}
 
 	return

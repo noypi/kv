@@ -77,6 +77,7 @@ func TestServerGet(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
+	defer rdr.Close()
 	assert.Nil(err)
 
 	for _, pair := range g_testTable {
@@ -93,9 +94,11 @@ func TestPrefixIter(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
+	defer rdr.Close()
 	assert.Nil(err)
 
 	iter := rdr.PrefixIterator([]byte("some"))
+	defer iter.Close()
 	i := 0
 	for ; iter.Valid(); iter.Next() {
 		assert.Equal(g_testTable[i].k, iter.Key())
@@ -112,9 +115,11 @@ func TestRangeIter(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
+	defer rdr.Close()
 	assert.Nil(err)
 
 	iter := rdr.RangeIterator([]byte("somek1"), []byte("somek2"))
+	defer iter.Close()
 	i := 1
 	for ; iter.Valid(); iter.Next() {
 		assert.Equal(g_testTable[i].k, iter.Key())
@@ -131,6 +136,7 @@ func TestMultiGet(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
+	defer rdr.Close()
 	assert.Nil(err)
 
 	bbRes, err := rdr.MultiGet([][]byte{
