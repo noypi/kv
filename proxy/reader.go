@@ -78,7 +78,7 @@ func (r *_reader) RangeIterator(start, end []byte) kv.KVIterator {
 }
 
 func (r *_reader) Close() error {
-	_, err := r.store.query(fmt.Sprintf("/reader/close?sid=%s",
+	_, err := r.store.query(fmt.Sprintf("/reader/close?id=%s",
 		r.ID,
 	))
 	return err

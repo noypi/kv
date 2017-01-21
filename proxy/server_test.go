@@ -63,11 +63,20 @@ func set01(assert *assertpkg.Assertions) (srv *proxy.Server, clientStore kv.KVSt
 	clientStore, err = proxy.NewClient(port, pass, false)
 	assert.Nil(err)
 
+	stat, err := proxy.Stat(clientStore)
+	assert.Nil(err)
+	assert.Equal(false, stat.TLS)
+
 	closer = func() {
 		srv.Close()
 		kvstore.Close()
 		os.RemoveAll(tmpdir)
+
+		stat := srv.Stat()
+		assert.Equal(0, stat.ReadersCount)
+		assert.Equal(0, stat.IteratorCount)
 	}
+
 	return
 }
 
@@ -86,6 +95,12 @@ func TestServerGet(t *testing.T) {
 		assert.Equal(pair.v, bb)
 	}
 
+	stat, err := proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(false, stat.TLS)
+	assert.Equal(1, stat.ReadersCount)
+	assert.Equal(0, stat.IteratorCount)
+
 }
 
 func TestPrefixIter(t *testing.T) {
@@ -94,11 +109,9 @@ func TestPrefixIter(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
-	defer rdr.Close()
 	assert.Nil(err)
 
 	iter := rdr.PrefixIterator([]byte("some"))
-	defer iter.Close()
 	i := 0
 	for ; iter.Valid(); iter.Next() {
 		assert.Equal(g_testTable[i].k, iter.Key())
@@ -106,6 +119,24 @@ func TestPrefixIter(t *testing.T) {
 		i++
 	}
 	assert.Equal(len(g_testTable), i)
+
+	stat, err := proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(false, stat.TLS)
+	assert.Equal(1, stat.ReadersCount)
+	assert.Equal(1, stat.IteratorCount)
+
+	iter.Close()
+	stat, err = proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(0, stat.IteratorCount)
+	assert.Equal(1, stat.ReadersCount)
+
+	rdr.Close()
+	stat, err = proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(0, stat.IteratorCount)
+	assert.Equal(0, stat.ReadersCount)
 
 }
 
@@ -115,11 +146,9 @@ func TestRangeIter(t *testing.T) {
 	defer closer()
 
 	rdr, err := client.Reader()
-	defer rdr.Close()
 	assert.Nil(err)
 
 	iter := rdr.RangeIterator([]byte("somek1"), []byte("somek2"))
-	defer iter.Close()
 	i := 1
 	for ; iter.Valid(); iter.Next() {
 		assert.Equal(g_testTable[i].k, iter.Key())
@@ -127,6 +156,24 @@ func TestRangeIter(t *testing.T) {
 		i++
 	}
 	assert.Equal(2, i)
+
+	stat, err := proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(false, stat.TLS)
+	assert.Equal(1, stat.ReadersCount)
+	assert.Equal(1, stat.IteratorCount)
+
+	iter.Close()
+	stat, err = proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(0, stat.IteratorCount)
+	assert.Equal(1, stat.ReadersCount)
+
+	rdr.Close()
+	stat, err = proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(0, stat.IteratorCount)
+	assert.Equal(0, stat.ReadersCount)
 
 }
 
@@ -147,5 +194,11 @@ func TestMultiGet(t *testing.T) {
 	assert.Equal(2, len(bbRes))
 	assert.Equal(g_testTable[0].v, bbRes[0])
 	assert.Equal(g_testTable[3].v, bbRes[1])
+
+	stat, err := proxy.Stat(client)
+	assert.Nil(err)
+	assert.Equal(false, stat.TLS)
+	assert.Equal(1, stat.ReadersCount)
+	assert.Equal(0, stat.IteratorCount)
 
 }

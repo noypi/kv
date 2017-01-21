@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -77,6 +78,26 @@ func New(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, er
 		if _, err = rv.postData("/auth", []byte(password)); nil != err {
 			return
 		}
+	}
+
+	return
+}
+
+func Stat(kvs kv.KVStore) (stat *ServerStat, err error) {
+	store, ok := kvs.(*_store)
+	if !ok {
+		err = fmt.Errorf("not a proxy kv")
+		return
+	}
+
+	stat = new(ServerStat)
+	bb, err := store.query("/stat")
+	if nil != err {
+		return
+	}
+
+	if err = json.Unmarshal(bb, stat); nil != err {
+		return
 	}
 
 	return

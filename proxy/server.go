@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-zoo/bone"
 	"github.com/gorilla/context"
 	"github.com/noypi/kv"
 	"github.com/noypi/util"
@@ -60,7 +61,7 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 	}
 
 	sessionname := "kvproxy-" + uuid.NewV4().String()
-	mux := http.NewServeMux()
+	mux := bone.New()
 	mux.HandleFunc("/", server.hRoot)
 	mux.HandleFunc("/auth/pubkey", server.hAuthPubkey)
 	mux.Handle("/auth", MidSeqFunc(
@@ -81,13 +82,15 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 		)
 	}
 
+	mux.Handle("/stat", fnCommon(server.hStat))
+
 	// reader
 	mux.Handle("/reader/get", fnCommon(server.hReaderGetHandler))
 	mux.Handle("/reader/multiget", fnCommon(server.hReaderMultiGetHandler))
 	mux.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
 	mux.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
 	mux.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
-	mux.Handle("/reader/close", fnCommon(server.hReaderRangeHandler))
+	mux.Handle("/reader/close", fnCommon(server.hReaderCloseHandler))
 
 	// iterator
 	mux.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
@@ -250,4 +253,32 @@ func generateTempCert(org, hosts string, bits int) (keypath, certpath string) {
 	}
 
 	return
+}
+
+type ServerStat struct {
+	TLS           bool
+	ReadersCount  int
+	IteratorCount int
+}
+
+func (this *Server) Stat() *ServerStat {
+	this.syncRdrs.Lock()
+	nTotalIters := 0
+	nTotalRdrs := 0
+	for _, openedRdr := range this.readers {
+		nTotalRdrs++
+		nTotalIters += len(openedRdr.iterators)
+	}
+	this.syncRdrs.Unlock()
+
+	return &ServerStat{
+		TLS:           this.bUseTls,
+		ReadersCount:  nTotalRdrs,
+		IteratorCount: nTotalIters,
+	}
+}
+
+func (this ServerStat) MarshalJSON() (bb []byte, err error) {
+	return []byte(fmt.Sprintf(`{"TLS": %v, "ReadersCount": %d, "IteratorCount": %d}`,
+		this.TLS, this.ReadersCount, this.IteratorCount)), nil
 }
