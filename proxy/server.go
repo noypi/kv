@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,8 +38,7 @@ type Server struct {
 	syncRdrs  sync.Mutex
 }
 
-func NewServer(store kv.KVStore, port, password string, bUseTls bool) (server *Server, err error) {
-
+func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (server *Server, err error) {
 	bbSecret := make([]byte, 10)
 	if _, err := rand.Read(bbSecret); nil == err {
 		bbSecret = []byte("some secret")
@@ -58,61 +58,66 @@ func NewServer(store kv.KVStore, port, password string, bUseTls bool) (server *S
 	}
 
 	sessionname := "kvproxy-" + uuid.NewV4().String()
-	http.HandleFunc("/auth", server.Authenticate)
-	http.Handle("/logout", MidSeqFunc(
-		server.Logout,
+	http.HandleFunc("/", server.hRoot)
+	http.HandleFunc("/auth/pubkey", server.hAuthPubkey)
+	http.Handle("/auth", MidSeqFunc(
+		server.hAuthenticate,
 		MidFn(AddCookieSession, sessionname),
-		MidFn(server.Validate),
+	))
+	http.Handle("/logout", MidSeqFunc(
+		server.hLogout,
+		MidFn(AddCookieSession, sessionname),
+		MidFn(server.hValidate),
 		MidFn(NoCache),
 	))
 
 	fnCommon := func(h http.HandlerFunc) http.Handler {
 		return MidSeqFunc(h,
 			MidFn(AddCookieSession, sessionname),
-			MidFn(server.Validate),
+			MidFn(server.hValidate),
 		)
 	}
 
 	// reader
-	http.Handle("/reader/get", fnCommon(server.ReaderGetHandler))
-	http.Handle("/reader/new", fnCommon(server.ReaderNewHandler))
-	http.Handle("/reader/prefix", fnCommon(server.ReaderPrefixHandler))
-	http.Handle("/reader/range", fnCommon(server.ReaderRangeHandler))
+	http.Handle("/reader/get", fnCommon(server.hReaderGetHandler))
+	http.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
+	http.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
+	http.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
 
 	// iterator
-	http.Handle("/iter/seek", fnCommon(server.IterSeekHandler))
-	http.Handle("/iter/close", fnCommon(server.IterCloseHandler))
-	http.Handle("/iter/key", fnCommon(server.IterKeyHandler))
-	http.Handle("/iter/value", fnCommon(server.IterValueHandler))
-	http.Handle("/iter/valid", fnCommon(server.IterValidHandler))
-	http.Handle("/iter/next", fnCommon(server.IterNextHandler))
+	http.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
+	http.Handle("/iter/close", fnCommon(server.hIterCloseHandler))
+	http.Handle("/iter/key", fnCommon(server.hIterKeyHandler))
+	http.Handle("/iter/value", fnCommon(server.hIterValueHandler))
+	http.Handle("/iter/valid", fnCommon(server.hIterValidHandler))
+	http.Handle("/iter/next", fnCommon(server.hIterNextHandler))
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 
 	server.gracesvr = &graceful.Server{
 		Timeout: 5 * time.Second,
 		Server: &http.Server{
-			Addr:    ":" + port,
+			Addr:    ":" + strconv.Itoa(port),
 			Handler: context.ClearHandler(http.DefaultServeMux),
 		},
 	}
 
 	if server.bUseTls {
 		keypath, certpath := generateTempCert("noypi", "localhost", 2048)
-		go log.Fatal(server.gracesvr.ListenAndServeTLS(certpath, keypath))
+		go server.gracesvr.ListenAndServeTLS(certpath, keypath)
 	} else {
-
 		if server.privkey, err = util.GenPrivKey(2048); nil != err {
 			log.Fatal("GenerateKey err=", err)
 			return
 		}
-		go log.Fatal(server.gracesvr.ListenAndServe())
+		go server.gracesvr.ListenAndServe()
 	}
 
 	return
 }
 
 func (this *Server) Close() {
+	this.gracesvr.Stop(1 * time.Second)
 	this.syncIters.Lock()
 	for _, iter := range this.iterators {
 		iter.Close()

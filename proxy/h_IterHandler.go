@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func (this *Server) IterSeekHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterSeekHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -31,7 +31,7 @@ func (this *Server) IterSeekHandler(w http.ResponseWriter, r *http.Request) {
 	iter.Seek(bbKey)
 }
 
-func (this *Server) IterKeyHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterKeyHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -50,7 +50,7 @@ func (this *Server) IterKeyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(iter.Key())
 }
 
-func (this *Server) IterValidHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterValidHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -73,7 +73,7 @@ func (this *Server) IterValidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (this *Server) IterValueHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterValueHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -92,7 +92,7 @@ func (this *Server) IterValueHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(iter.Value())
 }
 
-func (this *Server) IterNextHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterNextHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -111,7 +111,7 @@ func (this *Server) IterNextHandler(w http.ResponseWriter, r *http.Request) {
 	iter.Next()
 }
 
-func (this *Server) IterCloseHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hIterCloseHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {

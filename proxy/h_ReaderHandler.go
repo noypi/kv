@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func (this *Server) ReaderNewHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hReaderNewHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -23,7 +23,7 @@ func (this *Server) ReaderNewHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(id))
 }
 
-func (this *Server) ReaderGetHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hReaderGetHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -53,7 +53,7 @@ func (this *Server) ReaderGetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(bb)
 }
 
-func (this *Server) ReaderCloseHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hReaderCloseHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -66,7 +66,7 @@ func (this *Server) ReaderCloseHandler(w http.ResponseWriter, r *http.Request) {
 	this.closeRdr(id)
 }
 
-func (this *Server) ReaderPrefixHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hReaderPrefixHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {
@@ -90,7 +90,7 @@ func (this *Server) ReaderPrefixHandler(w http.ResponseWriter, r *http.Request) 
 	w.Write([]byte(id))
 }
 
-func (this *Server) ReaderRangeHandler(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hReaderRangeHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func() {
 		if nil != err {

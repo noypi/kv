@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -17,7 +18,11 @@ func (this Server) validatePassword(pass string) bool {
 	return this.passwordhash == fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func (this *Server) AuthPubkey(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hRoot(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+func (this *Server) hAuthPubkey(w http.ResponseWriter, r *http.Request) {
 	if this.bUseTls {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -32,23 +37,26 @@ func (this *Server) AuthPubkey(w http.ResponseWriter, r *http.Request) {
 	w.Write(bbPubk)
 }
 
-func (this *Server) Authenticate(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hAuthenticate(w http.ResponseWriter, r *http.Request) {
+	log.Println("+hAuthenticate()")
+	defer log.Println("-hAuthenticate()")
+
 	ctx := r.Context()
 	session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
 	bbPass, _ := ioutil.ReadAll(r.Body)
+	bbPass, _ = this.privkey.Decrypt(bbPass)
 	if this.validatePassword(string(bbPass)) {
 		session.Values["authenticated"] = true
 		session.Save(r, w)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("not authorized"))
 	}
 
 }
 
-func (this *Server) Validate(nexth http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hValidate(nexth http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
@@ -60,11 +68,11 @@ func (this *Server) Validate(nexth http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		nexth(w, r)
-	}
+		nexth.ServeHTTP(w, r)
+	})
 }
 
-func (this *Server) Logout(w http.ResponseWriter, r *http.Request) {
+func (this *Server) hLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	session := ctx.Value(webutil.SessionName).(*sessions.Session)
 	for k, _ := range session.Values {

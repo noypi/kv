@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
+	"strconv"
 
 	"github.com/noypi/kv"
 	"github.com/noypi/util"
@@ -19,8 +20,16 @@ type _store struct {
 	baseurl string
 }
 
-func NewClient(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, err error) {
-	port, ok := config["port"].(string)
+func NewClient(port int, password string, bUseTls bool) (prv kv.KVStore, err error) {
+	return New(dummymergeop{}, map[string]interface{}{
+		"password": password,
+		"port":     port,
+		"usetls":   bUseTls,
+	})
+}
+
+func New(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, err error) {
+	port, ok := config["port"].(int)
 	if !ok {
 		return nil, fmt.Errorf("must specify port")
 	}
@@ -34,12 +43,12 @@ func NewClient(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVSto
 
 	jar, _ := cookiejar.New(nil)
 	rv := _store{
-		port: port,
+		port: strconv.Itoa(port),
 		client: &http.Client{
 			Jar: jar,
 		},
 		mo:      mo,
-		baseurl: fmt.Sprintf("http://locahost:%s", port),
+		baseurl: fmt.Sprintf("http://localhost:%d", port),
 	}
 	prv = &rv
 
@@ -107,6 +116,25 @@ func (this dummymergeop) Name() string {
 	return "dummy-mergeop"
 }
 
+func respAsError(resp *http.Response, def error) (err error) {
+	if nil == resp {
+		err = def
+		return
+	}
+
+	bValid := 100 < resp.StatusCode && resp.StatusCode < 300
+	if !bValid {
+		var content string
+		if nil != resp {
+			bb, _ := ioutil.ReadAll(resp.Body)
+			content = string(bb)
+		}
+		err = fmt.Errorf("%s.%s", resp.Status, content)
+	}
+
+	return
+}
+
 func (this _store) query(q string) (bb []byte, err error) {
 	resp, err := this.client.Get(fmt.Sprintf("%s%s", this.baseurl, q))
 	if nil != err {
@@ -114,8 +142,7 @@ func (this _store) query(q string) (bb []byte, err error) {
 	}
 	defer resp.Body.Close()
 
-	if 200 != resp.StatusCode {
-		err = fmt.Errorf("%s", resp.Status)
+	if err = respAsError(resp, nil); nil != err {
 		return
 	}
 
@@ -125,14 +152,13 @@ func (this _store) query(q string) (bb []byte, err error) {
 
 func (this _store) postData(url string, data []byte) (bb []byte, err error) {
 	buf := bytes.NewBuffer(data)
-	resp, err := this.client.Post(url, "application/octet-stream", buf)
+	resp, err := this.client.Post(this.baseurl+url, "application/octet-stream", buf)
 	if nil != err {
 		return
 	}
 	defer resp.Body.Close()
 
-	if 200 != resp.StatusCode {
-		err = fmt.Errorf("%s", resp.Status)
+	if err = respAsError(resp, nil); nil != err {
 		return
 	}
 
