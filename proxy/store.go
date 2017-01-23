@@ -21,11 +21,12 @@ type _store struct {
 	baseurl string
 }
 
-func NewClient(port int, password string, bUseTls bool) (prv kv.KVStore, err error) {
+func NewClient(port int, basename, password string, bUseTls bool) (prv kv.KVStore, err error) {
 	return New(dummymergeop{}, map[string]interface{}{
 		"password": password,
 		"port":     port,
 		"usetls":   bUseTls,
+		"basename": basename,
 	})
 }
 
@@ -34,7 +35,10 @@ func New(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, er
 	if !ok {
 		return nil, fmt.Errorf("must specify port")
 	}
-
+	basename, ok := config["basename"].(string)
+	if !ok {
+		return nil, fmt.Errorf("must specify basename")
+	}
 	password, ok := config["password"].(string)
 	if !ok {
 		return nil, fmt.Errorf("must specify password")
@@ -49,7 +53,7 @@ func New(mo kv.MergeOperator, config map[string]interface{}) (prv kv.KVStore, er
 			Jar: jar,
 		},
 		mo:      mo,
-		baseurl: fmt.Sprintf("http://localhost:%d", port),
+		baseurl: fmt.Sprintf("http://localhost:%d/%s", port, basename),
 	}
 	prv = &rv
 

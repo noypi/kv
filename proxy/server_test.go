@@ -37,12 +37,13 @@ func set01(assert *assertpkg.Assertions) (srv *proxy.Server, clientStore kv.KVSt
 	assert.NotNil(kvstore)
 
 	const (
-		port = 18081
-		pass = "mamay"
+		port     = 18081
+		pass     = "mamay"
+		basename = "testing"
 	)
 
 	fmt.Println("starting server...")
-	srv, err = proxy.NewServer(kvstore, port, pass, false)
+	srv, err = proxy.NewServer(kvstore, port, basename, pass, false)
 	assert.Nil(err)
 	assert.NotNil(srv)
 
@@ -60,7 +61,7 @@ func set01(assert *assertpkg.Assertions) (srv *proxy.Server, clientStore kv.KVSt
 
 	// create client
 	fmt.Println("creating client...")
-	clientStore, err = proxy.NewClient(port, pass, false)
+	clientStore, err = proxy.NewClient(port, basename, pass, false)
 	assert.Nil(err)
 
 	stat, err := proxy.Stat(clientStore)

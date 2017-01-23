@@ -29,6 +29,7 @@ type _openedReader struct {
 type Server struct {
 	passwordhash string
 	passwordsalt []byte
+	basename     string
 	db           kv.KVStore
 	gracesvr     *graceful.Server
 	//server       *http.Server
@@ -42,7 +43,7 @@ type Server struct {
 	syncRdrs sync.Mutex
 }
 
-func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (server *Server, err error) {
+func NewServer(store kv.KVStore, port int, basename, password string, bUseTls bool) (server *Server, err error) {
 	bbSecret := make([]byte, 10)
 	if _, err := rand.Read(bbSecret); nil == err {
 		bbSecret = []byte("some secret")
@@ -56,19 +57,21 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 		passwordhash: fmt.Sprintf("%x", h.Sum(nil)),
 		db:           store,
 		readers:      map[string]*_openedReader{},
+		basename:     basename,
 		passwordsalt: bbSecret,
 		bUseTls:      bUseTls,
 	}
 
-	sessionname := "kvproxy-" + uuid.NewV4().String()
+	sessionname := "kvproxy-" + basename
 	mux := bone.New()
-	mux.HandleFunc("/", server.hRoot)
-	mux.HandleFunc("/auth/pubkey", server.hAuthPubkey)
-	mux.Handle("/auth", MidSeqFunc(
+	baseroot := "/" + basename
+	mux.HandleFunc(baseroot+"/", server.hRoot)
+	mux.HandleFunc(baseroot+"/auth/pubkey", server.hAuthPubkey)
+	mux.Handle(baseroot+"/auth", MidSeqFunc(
 		server.hAuthenticate,
 		MidFn(AddCookieSession, sessionname),
 	))
-	mux.Handle("/logout", MidSeqFunc(
+	mux.Handle(baseroot+"/logout", MidSeqFunc(
 		server.hLogout,
 		MidFn(AddCookieSession, sessionname),
 		MidFn(server.hValidate),
@@ -82,23 +85,23 @@ func NewServer(store kv.KVStore, port int, password string, bUseTls bool) (serve
 		)
 	}
 
-	mux.Handle("/stat", fnCommon(server.hStat))
+	mux.Handle(baseroot+"/stat", fnCommon(server.hStat))
 
 	// reader
-	mux.Handle("/reader/get", fnCommon(server.hReaderGetHandler))
-	mux.Handle("/reader/multiget", fnCommon(server.hReaderMultiGetHandler))
-	mux.Handle("/reader/new", fnCommon(server.hReaderNewHandler))
-	mux.Handle("/reader/prefix", fnCommon(server.hReaderPrefixHandler))
-	mux.Handle("/reader/range", fnCommon(server.hReaderRangeHandler))
-	mux.Handle("/reader/close", fnCommon(server.hReaderCloseHandler))
+	mux.Handle(baseroot+"/reader/get", fnCommon(server.hReaderGetHandler))
+	mux.Handle(baseroot+"/reader/multiget", fnCommon(server.hReaderMultiGetHandler))
+	mux.Handle(baseroot+"/reader/new", fnCommon(server.hReaderNewHandler))
+	mux.Handle(baseroot+"/reader/prefix", fnCommon(server.hReaderPrefixHandler))
+	mux.Handle(baseroot+"/reader/range", fnCommon(server.hReaderRangeHandler))
+	mux.Handle(baseroot+"/reader/close", fnCommon(server.hReaderCloseHandler))
 
 	// iterator
-	mux.Handle("/iter/seek", fnCommon(server.hIterSeekHandler))
-	mux.Handle("/iter/close", fnCommon(server.hIterCloseHandler))
-	mux.Handle("/iter/key", fnCommon(server.hIterKeyHandler))
-	mux.Handle("/iter/value", fnCommon(server.hIterValueHandler))
-	mux.Handle("/iter/valid", fnCommon(server.hIterValidHandler))
-	mux.Handle("/iter/next", fnCommon(server.hIterNextHandler))
+	mux.Handle(baseroot+"/iter/seek", fnCommon(server.hIterSeekHandler))
+	mux.Handle(baseroot+"/iter/close", fnCommon(server.hIterCloseHandler))
+	mux.Handle(baseroot+"/iter/key", fnCommon(server.hIterKeyHandler))
+	mux.Handle(baseroot+"/iter/value", fnCommon(server.hIterValueHandler))
+	mux.Handle(baseroot+"/iter/valid", fnCommon(server.hIterValidHandler))
+	mux.Handle(baseroot+"/iter/next", fnCommon(server.hIterNextHandler))
 
 	//srv := &http.Server{Addr: ":" + port, Handler: context.ClearHandler(http.DefaultServeMux)}
 
