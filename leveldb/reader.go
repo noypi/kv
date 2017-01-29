@@ -86,11 +86,15 @@ func (r *_reader) RangeIterator0(start, end []byte) kv.KVIterator {
 }
 
 func (r *_reader) ReversePrefixIterator(prefix []byte) kv.KVIterator {
-	panic("not implemented")
-	return nil
+	iter := r.PrefixIterator(prefix).(*_iterator)
+	iter.reverse = true
+	iter.iterator.Last()
+	return iter
 }
 
 func (r *_reader) ReverseRangeIterator(start, end []byte) kv.KVIterator {
-	panic("not implemented")
-	return nil
+	iter := r.ReverseRangeIterator(start, end).(*_iterator)
+	iter.reverse = true
+	iter.iterator.Last()
+	return iter
 }

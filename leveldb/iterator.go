@@ -18,6 +18,7 @@ import (
 type _iterator struct {
 	store    *_store
 	iterator iterator.Iterator
+	reverse  bool
 }
 
 func (ldi *_iterator) Seek(key []byte) {
@@ -25,7 +26,11 @@ func (ldi *_iterator) Seek(key []byte) {
 }
 
 func (ldi *_iterator) Next() {
-	ldi.iterator.Next()
+	if ldi.reverse {
+		ldi.iterator.Prev()
+	} else {
+		ldi.iterator.Next()
+	}
 }
 
 func (ldi *_iterator) Current() ([]byte, []byte, bool) {
@@ -53,8 +58,13 @@ func (ldi *_iterator) Close() error {
 }
 
 func (ldi *_iterator) Count() int {
-	panic("not implemented")
-	return -1
+	ldi.Reset()
+	n := 0
+	for ; ldi.Valid(); ldi.Next() {
+		n++
+	}
+	ldi.Reset()
+	return n
 }
 
 func (ldi *_iterator) Error() error {
@@ -63,7 +73,11 @@ func (ldi *_iterator) Error() error {
 }
 
 func (ldi *_iterator) Reset() {
-	panic("not implemented")
+	if ldi.reverse {
+		ldi.iterator.Last()
+	} else {
+		ldi.iterator.First()
+	}
 }
 
 func (ldi *_iterator) Reset0() {
