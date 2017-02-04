@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
+	"github.com/noypi/util"
 	"github.com/noypi/webutil"
 )
 
@@ -60,7 +61,7 @@ func (this *Server) hValidate(nexth http.Handler) http.Handler {
 		if !bValid {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("invalid session."))
-			webutil.LogErr(ctx, "Server.Validate() unauthenticated user.")
+			util.LogErr(ctx, "Server.Validate() unauthenticated user.")
 			return
 		}
 

@@ -41,6 +41,7 @@ type Server struct {
 
 	syncDb   sync.Mutex
 	syncRdrs sync.Mutex
+	sstore   *SessionStore
 }
 
 func NewServer(store kv.KVStore, port int, basename, password string, bUseTls bool) (server *Server, err error) {
@@ -60,6 +61,7 @@ func NewServer(store kv.KVStore, port int, basename, password string, bUseTls bo
 		basename:     basename,
 		passwordsalt: bbSecret,
 		bUseTls:      bUseTls,
+		sstore:       NewCookieSession(),
 	}
 
 	sessionname := "kvproxy-" + basename
@@ -69,18 +71,18 @@ func NewServer(store kv.KVStore, port int, basename, password string, bUseTls bo
 	mux.HandleFunc(baseroot+"/auth/pubkey", server.hAuthPubkey)
 	mux.Handle(baseroot+"/auth", MidSeqFunc(
 		server.hAuthenticate,
-		MidFn(AddCookieSession, sessionname),
+		MidFn(server.sstore.AddSessionHandler, sessionname),
 	))
 	mux.Handle(baseroot+"/logout", MidSeqFunc(
 		server.hLogout,
-		MidFn(AddCookieSession, sessionname),
+		MidFn(server.sstore.AddSessionHandler, sessionname),
 		MidFn(server.hValidate),
 		MidFn(NoCache),
 	))
 
 	fnCommon := func(h http.HandlerFunc) http.Handler {
 		return MidSeqFunc(h,
-			MidFn(AddCookieSession, sessionname),
+			MidFn(server.sstore.AddSessionHandler, sessionname),
 			MidFn(server.hValidate),
 		)
 	}
