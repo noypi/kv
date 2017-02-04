@@ -44,7 +44,7 @@ func (this *Server) hAuthenticate(w http.ResponseWriter, r *http.Request) {
 	bbPass, _ := ioutil.ReadAll(r.Body)
 	bbPass, _ = this.privkey.Decrypt(bbPass)
 	if this.validatePassword(string(bbPass)) {
-		session.Values["authenticated"] = true
+		session.Values["$authenticated"] = true
 		session.Save(r, w)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -57,7 +57,7 @@ func (this *Server) hValidate(nexth http.Handler) http.Handler {
 		ctx := r.Context()
 		session := ctx.Value(webutil.SessionName).(*sessions.Session)
 
-		bValid, _ := session.Values["authenticated"].(bool)
+		bValid, _ := session.Values["$authenticated"].(bool)
 		if !bValid {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("invalid session."))
