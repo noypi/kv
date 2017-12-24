@@ -25,8 +25,6 @@ import (
 	"github.com/steveyen/gtreap"
 )
 
-const Name = "gtreap"
-
 type Store struct {
 	m  sync.Mutex
 	t  *gtreap.Treap
