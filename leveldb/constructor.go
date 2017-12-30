@@ -10,18 +10,6 @@ const (
 	Name _leveldbKey = iota
 )
 
-type MergeOperatorOpt struct {
-	kv.Option
-}
-
-type FilePathOpt struct {
-	kv.Option
-}
-
-type ConfigOpt struct {
-	kv.Option
-}
-
 func newWithOpts(opts ...kv.Option) (kv.KVStore, error) {
 	var mo kv.MergeOperator = dummymergeop{}
 	var config0 map[string]interface{}
@@ -29,10 +17,10 @@ func newWithOpts(opts ...kv.Option) (kv.KVStore, error) {
 
 	for _, opt := range opts {
 		switch v := opt.(type) {
-		case MergeOperatorOpt:
-			mo = v.Option.(kv.MergeOperator)
-		case ConfigOpt:
-			config0 = v.Option.(map[string]interface{})
+		case kv.OptMergeOperator:
+			mo = v.(kv.MergeOperator)
+		case kv.OptConfig:
+			config0 = map[string]interface{}(v)
 			if 0 < len(config) {
 				for k, v := range config0 {
 					config[k] = v
@@ -40,8 +28,8 @@ func newWithOpts(opts ...kv.Option) (kv.KVStore, error) {
 			} else {
 				config = config0
 			}
-		case FilePathOpt:
-			config["path"] = filepath
+		case kv.OptFilePath:
+			config["path"] = string(v)
 		}
 	}
 	return New(mo, config)

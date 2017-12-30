@@ -10,6 +10,10 @@ type Constructor func(...Option) (KVStore, error)
 
 type Option interface{}
 
+type OptMergeOperator MergeOperator
+type OptConfig map[string]interface{}
+type OptFilePath string
+
 type KVRegistry struct {
 	m map[interface{}]Constructor
 }
@@ -20,8 +24,8 @@ func Register(k interface{}, c Constructor) {
 	defaultRegistry.Register(k, c)
 }
 
-func New(k interface{}) (KVStore, error) {
-	return defaultRegistry.New(k)
+func New(k interface{}, opts ...Option) (KVStore, error) {
+	return defaultRegistry.New(k, opts...)
 }
 
 func (this *KVRegistry) Register(k interface{}, c Constructor) {
@@ -32,7 +36,7 @@ func (this *KVRegistry) Register(k interface{}, c Constructor) {
 	this.m[k] = c
 }
 
-func (this KVRegistry) New(k interface{}) (KVStore, error) {
+func (this KVRegistry) New(k interface{}, opts ...Option) (KVStore, error) {
 	if nil == this.m {
 		return nil, ErrNotRegistered
 	}
@@ -41,5 +45,5 @@ func (this KVRegistry) New(k interface{}) (KVStore, error) {
 	if !has {
 		return nil, ErrNotRegistered
 	}
-	return constructor()
+	return constructor(opts...)
 }
