@@ -15,7 +15,7 @@ func newWithOpts(opts ...kv.Option) (kv.KVStore, error) {
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case kv.OptMergeOperator:
-			mo = v.(kv.MergeOperator)
+			mo = v
 		}
 	}
 	return New(mo, nil)

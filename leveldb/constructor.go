@@ -18,18 +18,18 @@ func newWithOpts(opts ...kv.Option) (kv.KVStore, error) {
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case kv.OptMergeOperator:
-			mo = v.(kv.MergeOperator)
+			mo = v
 		case kv.OptConfig:
-			config0 = map[string]interface{}(v)
+			config0 = v.ConfigType
 			if 0 < len(config) {
-				for k, v := range config0 {
-					config[k] = v
+				for k, v2 := range config0 {
+					config[k] = v2
 				}
 			} else {
 				config = config0
 			}
 		case kv.OptFilePath:
-			config["path"] = string(v)
+			config["path"] = v.FilePath
 		}
 	}
 	return New(mo, config)
